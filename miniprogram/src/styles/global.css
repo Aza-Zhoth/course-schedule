@@ -1,0 +1,1730 @@
+/* ==========================================================================
+   课程表 · 设计令牌与全局样式
+   样式策略（对应需求文档 §6.1）：原生 CSS + CSS 变量统一管理设计令牌，
+   不引入 CSS 框架 —— 单页小应用引入构建期样式方案的收益低于其成本。
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. 设计令牌
+   -------------------------------------------------------------------------- */
+
+/* 迁移说明：小程序里的根节点是 page 而不是 :root。
+   同时挂到 .app：page 只在小程序里存在，编译成 h5 目标后页面根容器是 .app。
+   注意顺序 —— .theme-dark 的覆盖块必须写在这条规则之后，
+   两者 specificity 相同（都是单个类），靠源码顺序保证深色能盖过默认值。 */
+page,
+.app {
+  /* 主色：青绿。刻意避开蓝紫色系，那是最典型的「AI 生成感」配色 */
+  --accent: #0d9488;
+  --accent-strong: #0b7a70;
+  --accent-soft: rgba(13, 148, 136, 0.1);
+
+  /* 中性色阶 */
+  --bg: #f4f6f5;
+  --surface: #ffffff;
+  --surface-2: #edf1f0;
+  --border: #e3e8e6;
+  --text: #16211f;
+  --text-2: #5f6b69;
+  --text-3: #8c9896;
+
+  /* 语义色 */
+  --danger: #c4453f;
+  --danger-soft: rgba(196, 69, 63, 0.1);
+  --success: #3f7d3a;
+
+  /* 阴影 —— 用暖调低透明度，避免纯黑阴影发脏 */
+  --shadow-sm: 0 1px 2px rgba(16, 31, 29, 0.06);
+  --shadow: 0 2px 10px rgba(16, 31, 29, 0.07);
+  --shadow-lg: 0 12px 32px rgba(16, 31, 29, 0.16);
+
+  /* 尺寸 */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --tabbar-h: 58px;
+  --app-max: 480px;
+  --pad: 14px;
+
+  /* 动效 —— 统一曲线，避免各处硬编码贝塞尔 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur: 200ms;
+}
+
+/* 深色模式。
+   迁移说明：H5 版是 :root[data-theme='dark'] —— 靠 document.documentElement 上的属性切换。
+   小程序没有 document，改成在页面根 View 上挂 theme-dark 类（见 pages/index/index.tsx），
+   类选择器的优先级高于 page 元素选择器，所以这里的变量能正确覆盖上面那组默认值。 */
+.theme-dark {
+  --accent: #2bb3a3;
+  --accent-strong: #35c4b3;
+  --accent-soft: rgba(43, 179, 163, 0.14);
+
+  --bg: #101617;
+  --surface: #1a2324;
+  --surface-2: #212d2e;
+  --border: #2a3635;
+  --text: #edf2f1;
+  --text-2: #a9b6b4;
+  --text-3: #74827f;
+
+  --danger: #e0685f;
+  --danger-soft: rgba(224, 104, 95, 0.14);
+  --success: #63b25c;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* --------------------------------------------------------------------------
+   2. 重置与基础
+   -------------------------------------------------------------------------- */
+
+/* 迁移说明：小程序不支持通配符选择器 *，只能把常用组件逐个列出来 */
+page,
+view,
+text,
+image,
+button,
+input,
+textarea,
+scroll-view,
+picker,
+switch,
+label,
+navigator,
+form {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 迁移说明：小程序没有 html / body 元素，基础样式直接落在 page 上。
+   同时挂一份到 .app：page 是小程序特有的根元素，编译成 h5 目标后不存在，
+   把令牌和基础排版同时落在 .app（两个目标里都是页面根容器），
+   这样同一份代码既能在开发者工具里跑，也能起一个网页版做对照。 */
+page,
+.app {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 迁移说明：原来的 button / ul / ol / :focus-visible 重置都删掉了 ——
+   小程序里按钮统一用 View 实现（没有默认样式），也没有 ul/ol、没有焦点样式 */
+
+/* --------------------------------------------------------------------------
+   3. 应用外壳
+   -------------------------------------------------------------------------- */
+
+.app {
+  position: relative;
+  max-width: var(--app-max);
+  /* 迁移说明：100dvh 是小程序不认的单位，退回 100vh */
+  min-height: 100vh;
+  margin: 0 auto;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.app__main {
+  flex: 1;
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px);
+}
+
+/* 设置页没有顶部 Header，需要自己让出状态栏高度 */
+.app__main--top {
+  padding-top: calc(env(safe-area-inset-top) + 4px);
+}
+
+@media (min-width: 481px) {
+  .app {
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 0 60px rgba(16, 31, 29, 0.08);
+  }
+}
+
+.page {
+  padding: var(--pad);
+}
+
+.page__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.page__title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.page__count {
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   4. 顶部 Header
+   -------------------------------------------------------------------------- */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: calc(env(safe-area-inset-top) + 14px) var(--pad) 12px;
+  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: #fff;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  box-shadow: var(--shadow);
+}
+
+.header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.header__title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.header__subtitle {
+  font-size: 11px;
+  opacity: 0.82;
+  margin-top: 1px;
+}
+
+.header__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* 半透明按钮：压在渐变头部上，用白色低透明度比纯白更柔和 */
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  transition: background-color var(--dur) var(--ease-in-out), transform 120ms;
+}
+
+.icon-btn:active {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.94);
+}
+
+.week-switch {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.week-switch__btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  transition: background-color var(--dur) var(--ease-in-out);
+}
+
+/* 迁移说明：小程序没有 disabled 属性，禁用态改由 .week-switch__btn--disabled 类表达 */
+.week-switch__btn:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.week-switch__btn--disabled {
+  opacity: 0.35;
+}
+
+/* 禁用时按下不再给反馈，否则会误以为还能翻 */
+.week-switch__btn--disabled:active {
+  background: transparent;
+}
+
+.week-switch__center {
+  text-align: center;
+  min-width: 0;
+}
+
+.week-switch__label {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-switch__range {
+  font-size: 11px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-switch__today {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-strong);
+  vertical-align: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   5. 底部 Tab 导航
+   -------------------------------------------------------------------------- */
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-width: var(--app-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  /* 迁移说明：原先是 color-mix() + backdrop-filter 的半透明毛玻璃。
+     小程序各端 webview 对 color-mix / backdrop-filter / @supports 的支持不一致，
+     直接落成不透明的 surface，视觉更稳定（顶上就是一根细分隔线，观感几乎一致）。 */
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tabbar__item {
+  height: var(--tabbar-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-3);
+  transition: color var(--dur) var(--ease-in-out);
+}
+
+.tabbar__item--active {
+  color: var(--accent);
+}
+
+.tabbar__item:active {
+  transform: scale(0.96);
+}
+
+.tabbar__label {
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   6. 周课表网格
+   -------------------------------------------------------------------------- */
+
+.schedule {
+  padding: 10px var(--pad) 4px;
+}
+
+.schedule__grid {
+  display: grid;
+  grid-template-columns: 28px repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.schedule__day {
+  padding: 6px 0 7px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.schedule__day--today {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.schedule__day-short {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.schedule__day-num {
+  display: block;
+  font-size: 9px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.schedule__section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-3);
+}
+
+.schedule__section-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  line-height: 1;
+}
+
+.schedule__section-time {
+  font-size: 8px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 空格子 / 课程格子 */
+.slot {
+  position: relative;
+  min-height: 46px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: background-color 150ms;
+  /* 跨节次的课程是「一个元素跨 N 行」（见 WeekGrid 的 grid-row: span N），
+     用 flex 把内部的色块垂直撑满整块，避免色块只占上半截、下面露白。 */
+  display: flex;
+  flex-direction: column;
+}
+
+.slot--empty {
+  border: 1px dashed var(--border);
+  background: transparent;
+}
+
+.slot--empty:active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.slot__chip {
+  /* 迁移说明：删掉了 height: 100% —— 它让色块高度锁死在格子高度上，
+     一旦课程名/地点撑到两行以上，超出部分会被 overflow:hidden 裁掉，
+     表现就是「地点显示不出来」。
+     改成 flex:1 1 auto：有空余高度时色块撑满（跨节次的合并块靠这个填满整块），
+     内容比格子高时由 flex item 的 min-height:auto 兜底、把格子一起撑高。 */
+  flex: 1 1 auto;
+  min-height: 42px;
+  padding: 4px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  color: #fff;
+  text-align: left;
+  width: 100%;
+  box-shadow: var(--shadow-sm);
+  transition: transform 130ms var(--ease-out), filter 150ms;
+}
+
+.slot__chip:active {
+  transform: scale(0.97);
+  filter: brightness(0.94);
+}
+
+/* 单节次的课：四角圆角 */
+.slot__chip--single {
+  border-radius: var(--radius-sm);
+}
+
+/* 跨节次的课：由「一个元素跨 N 行」渲染，本身就是一整块连续色块，
+   四角统一圆角即可 —— 不再需要 --start / --mid / --end 那种上下拼接的处理 */
+.slot__chip--block {
+  border-radius: var(--radius-sm);
+  justify-content: flex-start;
+  padding: 5px 5px 4px;
+}
+
+.slot__name {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  /* 最多两行，超出省略 —— 防止长课程名把格子撑破 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+/* 合并块（跨节次）高度是单格的两三倍，课程名放开到三行 */
+.slot__chip--block .slot__name {
+  -webkit-line-clamp: 3;
+}
+
+/* 有单双周角标时给课程名让出位置，否则角标会压在字上 */
+.slot__chip--parity .slot__name {
+  padding-right: 15px;
+}
+
+/* 上课地点 —— 课表里最需要一眼看到的信息之一，字号比课程名小但不再压透明度，
+   保证在任何课块底色上都清晰 */
+.slot__meta {
+  font-size: 9px;
+  line-height: 1.25;
+  opacity: 0.95;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+/* 教师 —— 只有跨节次的合并块才渲染（单节次格子高度不够），见 WeekGrid */
+.slot__teacher {
+  display: block;
+  font-size: 8.5px;
+  line-height: 1.3;
+  opacity: 0.85;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.slot__parity {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  /* inherit = 跟随色块的深色文字（WeekGrid 行内样式），
+     浅渐变上白底角标 + 同色深字，比写死的黑字更成套 */
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  line-height: 1.4;
+}
+
+
+/* --------------------------------------------------------------------------
+   7. 今日课程时间轴
+   -------------------------------------------------------------------------- */
+
+.today-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 4px 2px 16px;
+}
+
+.today-hero__date {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.today-hero__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 2px;
+}
+
+.today-hero__weekday {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.today-hero__week {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeline__item {
+  display: grid;
+  grid-template-columns: 44px 16px 1fr;
+  align-items: stretch;
+  gap: 0;
+}
+
+.timeline__time {
+  padding-top: 12px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+/* 竖线 + 圆点：用伪元素画，省一层 DOM */
+.timeline__rail {
+  position: relative;
+}
+
+.timeline__rail::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+
+.timeline__item:first-child .timeline__rail::before {
+  top: 16px;
+}
+
+.timeline__item:last-child .timeline__rail::before {
+  bottom: calc(100% - 16px);
+}
+
+.timeline__dot {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.timeline__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  margin-bottom: 2px;
+  text-align: left;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform 130ms var(--ease-out), box-shadow var(--dur);
+}
+
+.timeline__card:active {
+  transform: scale(0.985);
+  box-shadow: var(--shadow);
+}
+
+.timeline__card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline__card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.timeline__card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline__badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.timeline__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.timeline__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.timeline__meta-item .icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.timeline__section {
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.timeline__section span {
+  display: block;
+  font-weight: 500;
+  font-size: 9.5px;
+  color: var(--text-3);
+}
+
+/* --------------------------------------------------------------------------
+   8. 课程库
+   -------------------------------------------------------------------------- */
+
+.lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lib-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.lib-item__bar {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.lib-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.lib-item__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.lib-item__name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lib-item__meta {
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.lib-item__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 页面内的浅色小圆按钮（区别于头部压在渐变上的白色按钮） */
+.icon-btn--soft {
+  width: 32px;
+  height: 32px;
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+.icon-btn--soft:active {
+  background: var(--border);
+  color: var(--text);
+}
+
+.icon-btn--danger:active {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* --------------------------------------------------------------------------
+   9. 设置页
+   -------------------------------------------------------------------------- */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings__group {
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.settings__legend {
+  padding: 9px 12px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  text-align: left;
+  border-top: 1px solid var(--border);
+}
+
+.settings__legend + .settings__row {
+  border-top: none;
+}
+
+.settings__icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.settings__icon--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.settings__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings__label {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.settings__label--danger {
+  color: var(--danger);
+}
+
+.settings__hint {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+.settings__value {
+  font-size: 13px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 行内输入框（总周数 / 提前分钟数那两行）：
+   .field__input 自带的 width:100% 会把左侧「总周数 / 范围 1~30 周」
+   的文字挤成一字一行（视觉上像被遮了一半），这里用双类选择器压过它 */
+.settings__row .settings__value {
+  width: 96px;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.settings__footer {
+  padding: 14px 0 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.7;
+}
+
+/* 开关 */
+.switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  transition: background-color var(--dur) var(--ease-in-out), border-color var(--dur);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.switch--on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch--on::after {
+  transform: translateX(18px);
+}
+
+.switch--disabled {
+  opacity: 0.45;
+}
+
+/* 自定义勾选框。
+   迁移说明：H5 版用的是原生 <input type="checkbox">，小程序里没有这个标签，
+   统一换成 View + 类名（见 SmartImportModal）。勾是用 ::after 的旋转边框画出来的，
+   不依赖字体图标或图片，主题切换也不用跟着改。 */
+.checkbox {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--text-3);
+  border-radius: 5px;
+  background: var(--surface);
+  transition: background-color var(--dur), border-color var(--dur);
+}
+
+.checkbox--on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkbox--on::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* --------------------------------------------------------------------------
+   10. 表单
+   -------------------------------------------------------------------------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.field__required {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.field__input,
+.field__select {
+  width: 100%;
+  /* 小程序的 <input> 组件不会像网页元素那样被上下 padding 撑出高度：
+     高度必须显式声明，否则真机上输入的文字会被裁掉上半截。
+     41px = 迁移前 9px 上下内边距 + 21px 行高 + 2px 边框的实际总高，视觉尺寸不变 */
+  height: 41px;
+  min-height: 41px;
+  padding: 0 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  transition: border-color var(--dur), background-color var(--dur);
+}
+
+/* 迁移说明：小程序里 ::placeholder 不生效，占位符颜色要靠 Input 组件的
+   placeholderClass 指定（见 components 里的 .input-placeholder）。
+   同理 :focus —— 小程序的 Input 不触发 CSS 焦点态，这里只保留一个
+   纯视觉的「已填写」回退，不再依赖焦点伪类。 */
+
+.field__input--error,
+.field__select--error {
+  border-color: var(--danger);
+}
+
+/* 统一的占位符样式，由各组件的 Input placeholderClass="input-placeholder" 引用 */
+.input-placeholder {
+  color: var(--text-3);
+}
+
+.field__error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.field__select {
+  /* 展示容器里是 <Text>，靠 flex 垂直居中，别用行高凑 —— 单双周/节次文案换行时不会被裁 */
+  display: flex;
+  align-items: center;
+  appearance: none;
+  -webkit-appearance: none;
+  /* 自绘下拉箭头，避免各端原生箭头样式不一致 */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+
+/* 迁移说明：Picker 需要一个可点的展示容器，这里复用 .field__input 的外观。
+   它和真 Input 的差别是内容靠 flex 垂直居中 —— 因为里面是 Text 而不是受控输入框。
+   min-height 41px 与 .field__input 的显式高度对齐。 */
+.field__input--picker {
+  display: flex;
+  align-items: center;
+  min-height: 41px;
+  /* 带 --picker 的输入框本身就是可点的，给个手型光标提示 */
+  cursor: pointer;
+}
+
+/* 颜色选择 */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--border) inset;
+  transition: transform 130ms var(--ease-out);
+}
+
+.swatch:active {
+  transform: scale(0.9);
+}
+
+.swatch--active {
+  border-color: var(--text);
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   11. 按钮
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 11px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 130ms var(--ease-out), background-color var(--dur), opacity var(--dur);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+/* 迁移说明：小程序没有 disabled 属性，禁用态统一用 .btn--disabled 类 */
+.btn--disabled {
+  opacity: 0.5;
+}
+
+/* 禁用时按下不再缩放，否则视觉上仍像可点 */
+.btn--disabled:active {
+  transform: none;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn--primary:active {
+  background: var(--accent-strong);
+}
+
+.btn--secondary {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn--danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--sm {
+  padding: 7px 12px;
+  font-size: 12.5px;
+  border-radius: 999px;
+}
+
+/* --------------------------------------------------------------------------
+   12. 浮层：底部抽屉 / 确认框 / Toast
+   -------------------------------------------------------------------------- */
+
+.modal {
+  position: fixed;
+  /* 迁移说明：inset 简写在部分小程序 webview 上不生效，拆成四边写法 */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+/* 迁移说明：H5 版把半透明遮罩当成 .modal 自身的背景，
+   点击 .modal 就能关闭。小程序的事件对象没有 DOM 节点可比对，
+   「点遮罩关闭」只能靠一个独立的遮罩层来承接 onClick —— 见各 Modal 组件里的
+   <View className="modal__mask" onClick={onClose} />。 */
+.modal__mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(12, 20, 19, 0.5);
+  animation: fade-in 180ms var(--ease-out);
+}
+
+.modal--center {
+  align-items: center;
+  padding: 24px;
+}
+
+.modal__sheet {
+  /* 迁移说明：relative + z-index 让面板盖在绝对定位的遮罩层之上 */
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--app-max);
+  /* 迁移说明：90dvh 不被支持，退回 90vh */
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  animation: slide-up 260ms var(--ease-out);
+}
+
+.modal__sheet--card {
+  max-width: 340px;
+  border-radius: var(--radius-lg);
+  animation: pop-in 200ms var(--ease-out);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 15px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.modal__close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-3);
+}
+
+.modal__close:active {
+  background: var(--surface-2);
+}
+
+.modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal__foot {
+  display: flex;
+  gap: 9px;
+  padding: 11px 16px;
+  padding-bottom: calc(11px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+}
+
+.modal__foot .btn {
+  flex: 1;
+}
+
+/* 迁移说明：智能导入的底部按钮原来直接是 .modal__foot 的子元素，
+   现在外面多包了一层 .modal__foot-inner（两个步骤分支各一组），
+   这一层要铺满宽度并保持原来的间距。 */
+.modal__foot-inner {
+  display: flex;
+  gap: 9px;
+  width: 100%;
+}
+
+.confirm {
+  padding: 22px 20px 16px;
+  text-align: center;
+}
+
+.confirm__title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+
+.confirm__message {
+  font-size: 13.5px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 20px);
+  z-index: 200;
+  /* 迁移说明：min() 在部分小程序 webview 上支持不全，直接给上限值 */
+  max-width: 300px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff;
+  background: rgba(20, 30, 29, 0.9);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+  animation: toast-in 220ms var(--ease-out);
+  pointer-events: none;
+}
+
+.toast--success {
+  background: rgba(43, 96, 40, 0.94);
+}
+
+.toast--error {
+  background: rgba(150, 46, 42, 0.94);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   13. 空状态与浮动按钮
+   -------------------------------------------------------------------------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 52px 24px 40px;
+  text-align: center;
+}
+
+.empty__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.empty__title {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.empty__text {
+  font-size: 12.5px;
+  color: var(--text-3);
+  line-height: 1.7;
+  max-width: 26ch;
+}
+
+.empty__action {
+  margin-top: 14px;
+}
+
+.empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.app__fab {
+  position: fixed;
+  /* 迁移说明：原写法是 max(var(--pad), calc(50vw - var(--app-max)/2 + var(--pad)))，
+     为的是在宽屏上把按钮对齐到内容栏右侧。小程序视口永远比 --app-max(480px) 窄，
+     max() 恒等于 var(--pad)，直接写死，顺便避开部分 webview 对 max() 支持不全的问题。 */
+  right: var(--pad);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
+  z-index: 25;
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(13, 148, 136, 0.42);
+  transition: transform 160ms var(--ease-out);
+}
+
+.app__fab:active {
+  transform: scale(0.92);
+}
+
+/* --------------------------------------------------------------------------
+   14. 无障碍：尊重系统的「减弱动态效果」设置
+   -------------------------------------------------------------------------- */
+
+/* 迁移说明：小程序的 WXSS 只保证支持 类/元素/并集/::before/::after 这几种选择器，
+   通配符 * 不保证可用，这里换成组件元素列表。 */
+@media (prefers-reduced-motion: reduce) {
+  page,
+  view,
+  text,
+  image,
+  button,
+  input,
+  textarea,
+  scroll-view,
+  picker,
+  label,
+  navigator,
+  form,
+  page::before,
+  page::after,
+  view::before,
+  view::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   15. 智能导入与节次作息（v2.1 新增）
+   -------------------------------------------------------------------------- */
+
+/* 页头并排放两个以上的操作按钮 */
+.page__head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.modal__sheet--wide {
+  max-width: 560px;
+}
+
+.modal__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+
+.modal__hint strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.modal__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- 智能导入：输入步 ---- */
+
+/* 迁移说明：小程序的 Textarea 高度由组件自身决定，min-height 不生效，
+   实际高度由组件行内 style 用 Taro.pxTransform() 给出；
+   resize 手柄、:focus 焦点态在小程序里都不存在，一并删掉。 */
+.import-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.import-tip {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.import-tip__title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.import-tip__steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--text-2);
+}
+
+.import-tip__note {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* ---- 智能导入：未识别行 ---- */
+/* 迁移说明：原先用 <details>/<summary>/<pre> 做折叠区和等宽展示，
+   小程序没有这三个标签，改成 state 控制的展开区（见 SmartImportModal）。 */
+.import-unmatched {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.import-unmatched__summary {
+  padding: 9px 12px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+.import-unmatched__summary:active {
+  background: var(--border);
+}
+
+.import-unmatched__body {
+  padding: 9px 12px;
+  background: var(--surface);
+}
+
+/* 未识别的行原样展示，用等宽字体方便和粘贴的原文逐字比对 */
+.import-unmatched__line {
+  display: block;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-3);
+  word-break: break-all;
+}
+
+/* ---- 智能导入：预览步 ---- */
+
+.import-all {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-row {
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.preview-row--off {
+  opacity: 0.5;
+}
+
+.preview-row--empty {
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.preview-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.preview-row__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preview-row__source {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-row__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.preview-row__grid .field__input,
+.preview-row__grid .field__select {
+  min-width: 0;
+  /* 预览行比主表单紧凑：35px = 6px 上下内边距时代的实际总高 */
+  height: 35px;
+  min-height: 35px;
+  padding: 0 8px;
+  font-size: 12.5px;
+}
+
+.preview-row__name {
+  grid-column: 1 / -1;
+}
+
+.preview-row__issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.badge--warn {
+  background: rgba(216, 160, 30, 0.14);
+  color: #9a7414;
+}
+
+.theme-dark .badge--warn {
+  color: #e3b04a;
+}
+
+.badge--dup {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.import-unmatched {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.import-unmatched summary {
+  cursor: pointer;
+}
+
+.import-unmatched pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---- 节次作息编辑 ---- */
+
+.sections-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sections-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sections-row__num {
+  width: 58px;
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.sections-row__time {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.sections-row__sep {
+  color: var(--text-3);
+}
+
+.sections-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 设置页行右侧的进入箭头 */
+.settings__arrow {
+  flex: none;
+  color: var(--text-3);
+  font-size: 18px;
+  line-height: 1;
+}

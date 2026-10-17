@@ -1,0 +1,32 @@
+# 依赖（两个子工程各自有 node_modules，加起来三万多个文件，必须排除）
+node_modules/
+
+# 构建产物
+# 网页版 vite build → web/dist
+# 小程序版 taro build → miniprogram/dist
+# 都是可以一键重新生成的，不进版本库
+dist/
+dist-h5/
+
+# 编译缓存
+.swc/
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# 本地环境变量（本项目没有，但留个兜底）
+.env
+.env.local
+.env.*.local

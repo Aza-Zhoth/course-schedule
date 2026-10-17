@@ -1,0 +1,24 @@
+{
+  "name": "course-schedule-app",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "课程表 — 面向大学生的移动端课表工具（React 18 + TypeScript + Vite）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

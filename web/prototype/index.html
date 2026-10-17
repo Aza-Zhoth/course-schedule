@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0D9488" />
+  <title>课程表 · Course Schedule</title>
+  <style>
+    /* ========== 基础重置 ========== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+    button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    input, select, textarea { font: inherit; color: inherit; }
+
+    :root {
+      --primary: #0D9488;
+      --primary-dark: #0B7A70;
+      --bg: #F4F6F5;
+      --card-bg: #ffffff;
+      --text: #1A2422;
+      --text-2: #5F6B69;
+      --text-3: #8C9896;
+      --border: #E3E8E6;
+      --danger: #C4453F;
+      --success: #4F8A46;
+      --warning: #B8801F;
+      --shadow: 0 2px 12px rgba(0,0,0,0.06);
+      --shadow-md: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    [data-theme="dark"] {
+      --bg: #101617;
+      --card-bg: #1A2324;
+      --text: #EDF2F1;
+      --text-2: #B4C0BE;
+      --text-3: #7E8C8A;
+      --border: #2A3635;
+      --shadow: 0 2px 12px rgba(0,0,0,0.3);
+      --shadow-md: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    /* ========== 整体布局 ========== */
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: var(--bg);
+      position: relative;
+      padding-bottom: 64px;
+      box-shadow: 0 0 40px rgba(0,0,0,0.08);
+    }
+
+    /* ========== Header ========== */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: #fff;
+      padding: 20px 16px 16px;
+      padding-top: max(20px, env(safe-area-inset-top));
+      box-shadow: var(--shadow);
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .header-title { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background .2s;
+    }
+    .icon-btn:active { background: rgba(255,255,255,0.3); }
+    .icon-btn svg { width: 20px; height: 20px; }
+
+    .week-switcher {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 6px 8px;
+    }
+    .week-btn {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff;
+      transition: background .2s;
+    }
+    .week-btn:active { background: rgba(255,255,255,0.25); }
+    .week-label { font-size: 15px; font-weight: 600; }
+    .week-date { font-size: 11px; opacity: 0.85; margin-left: 4px; }
+
+    /* ========== Tab Bar ========== */
+    .tabbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 20;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .tab-item {
+      flex: 1;
+      padding: 10px 0 8px;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      color: var(--text-3);
+      transition: color .2s;
+    }
+    .tab-item.active { color: var(--primary); }
+    .tab-item svg { width: 22px; height: 22px; }
+    .tab-item span { font-size: 11px; }
+
+    /* ========== View Container ========== */
+    .view { display: none; }
+    .view.active { display: block; animation: fadeIn .3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* ========== 周课表 ========== */
+    .schedule-container {
+      padding: 8px;
+      overflow-x: auto;
+    }
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: 36px repeat(7, 1fr);
+      gap: 4px;
+      min-width: 100%;
+    }
+    .grid-header {
+      position: sticky; top: 0;
+      background: var(--card-bg);
+      font-size: 12px; font-weight: 600;
+      text-align: center;
+      padding: 8px 2px;
+      color: var(--text-2);
+      border-radius: 6px;
+      z-index: 2;
+    }
+    .grid-header.today { color: var(--primary); background: rgba(13,148,136,0.1); }
+    .grid-section {
+      font-size: 11px; font-weight: 600;
+      text-align: center;
+      padding: 6px 2px;
+      color: var(--text-2);
+      background: var(--card-bg);
+      border-radius: 6px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .grid-section .num { font-size: 14px; color: var(--text); font-weight: 700; }
+    .grid-section .time { font-size: 9px; color: var(--text-3); margin-top: 1px; }
+
+    .grid-cell {
+      background: var(--card-bg);
+      min-height: 56px;
+      border-radius: 6px;
+      padding: 3px;
+      display: flex; flex-direction: column;
+      transition: transform .15s, box-shadow .15s;
+      cursor: pointer;
+      position: relative;
+    }
+    .grid-cell:active { transform: scale(0.97); }
+    .grid-cell.empty { background: transparent; border: 1px dashed var(--border); }
+    .grid-cell.empty:active { background: rgba(13,148,136,0.05); }
+
+    .course-card {
+      flex: 1;
+      border-radius: 4px;
+      padding: 4px 5px;
+      color: #fff;
+      font-size: 11px;
+      line-height: 1.3;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .course-card .name { font-weight: 600; font-size: 12px; margin-bottom: 1px; }
+    .course-card .loc { opacity: 0.95; font-size: 10px; }
+    .course-card.compact { padding: 3px 4px; }
+    .course-card.compact .name { font-size: 11px; }
+
+    /* ========== 今日课程列表 ========== */
+    .today-section { padding: 16px; }
+    .today-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px;
+    }
+    .today-date {
+      font-size: 24px; font-weight: 700; color: var(--primary);
+    }
+    .today-info { display: flex; flex-direction: column; }
+    .today-weekday { font-size: 14px; color: var(--text-2); }
+    .today-week { font-size: 12px; color: var(--text-3); }
+
+    .course-list { display: flex; flex-direction: column; gap: 10px; }
+    .course-list-item {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      display: flex; align-items: center; gap: 12px;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .course-list-item:active { transform: scale(0.98); }
+    .course-color-bar {
+      width: 4px; height: 40px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .course-content { flex: 1; min-width: 0; }
+    .course-content .title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .course-content .meta { font-size: 12px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 8px; }
+    .course-content .meta span { display: inline-flex; align-items: center; gap: 3px; }
+    .course-section-badge {
+      background: rgba(13,148,136,0.1);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-3);
+    }
+    .empty-state svg { width: 80px; height: 80px; opacity: 0.4; margin-bottom: 16px; }
+    .empty-state .text { font-size: 14px; }
+
+    /* ========== 课程库 ========== */
+    .library-section { padding: 16px; }
+    .library-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .library-title { font-size: 18px; font-weight: 700; }
+    .add-btn {
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px;
+      box-shadow: 0 2px 8px rgba(13,148,136,0.4);
+    }
+    .add-btn:active { background: var(--primary-dark); }
+    .add-btn svg { width: 14px; height: 14px; }
+
+    .lib-item {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .lib-item-info { flex: 1; min-width: 0; }
+    .lib-item-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .lib-item-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .lib-item-meta { font-size: 12px; color: var(--text-2); }
+    .lib-item-actions { display: flex; gap: 6px; }
+    .lib-item-actions button {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: var(--bg);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-2);
+    }
+    .lib-item-actions button:active { background: var(--border); }
+    .lib-item-actions button.danger:active { color: var(--danger); }
+    .lib-item-actions svg { width: 16px; height: 16px; }
+
+    /* ========== 设置页 ========== */
+    .settings-section { padding: 16px; }
+    .settings-group {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .settings-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-item:last-child { border-bottom: none; }
+    .settings-item .icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: rgba(13,148,136,0.1);
+      color: var(--primary);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .settings-item .icon svg { width: 18px; height: 18px; }
+    .settings-item .label { flex: 1; font-size: 14px; }
+    .settings-item .arrow { color: var(--text-3); }
+    .settings-item .value { color: var(--text-2); font-size: 13px; }
+
+    /* Switch */
+    .switch {
+      position: relative;
+      width: 44px; height: 24px;
+      background: var(--border);
+      border-radius: 12px;
+      transition: background .2s;
+      cursor: pointer;
+    }
+    .switch.on { background: var(--primary); }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 20px; height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .switch.on::after { transform: translateX(20px); }
+
+    /* ========== Modal 弹窗 ========== */
+    .modal-mask {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      animation: fadeIn .2s;
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      background: var(--card-bg);
+      border-radius: 20px 20px 0 0;
+      display: flex; flex-direction: column;
+      animation: slideUp .3s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-close {
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-3);
+      border-radius: 50%;
+    }
+    .modal-close:active { background: var(--bg); }
+    .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
+    .modal-footer {
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      display: flex; gap: 10px;
+    }
+    .modal-footer .btn { flex: 1; }
+
+    /* ========== 表单 ========== */
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: block;
+      font-size: 13px; font-weight: 600;
+      color: var(--text-2);
+      margin-bottom: 6px;
+    }
+    .form-label .req { color: var(--danger); margin-left: 2px; }
+    .form-input, .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      transition: border-color .2s;
+    }
+    .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary); }
+    .form-row { display: flex; gap: 8px; }
+    .form-row > * { flex: 1; }
+    .form-error { color: var(--danger); font-size: 12px; margin-top: 4px; }
+
+    .color-picker {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .color-swatch {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+      border: 2px solid transparent;
+    }
+    .color-swatch:active { transform: scale(0.9); }
+    .color-swatch.selected {
+      border-color: var(--text);
+      box-shadow: 0 0 0 2px var(--card-bg) inset;
+    }
+
+    /* ========== 按钮 ========== */
+    .btn {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      text-align: center;
+      transition: opacity .2s, background .2s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:active { background: var(--primary-dark); }
+    .btn-secondary { background: var(--bg); color: var(--text); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--primary); }
+
+    /* ========== 确认弹窗 ========== */
+    .confirm-content { padding: 8px 0; text-align: center; font-size: 15px; }
+    .confirm-content .title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .confirm-content .msg { color: var(--text-2); font-size: 14px; }
+
+    /* ========== Toast ========== */
+    .toast {
+      position: fixed;
+      bottom: 100px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity .3s, transform .3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+    /* ========== 浮动添加按钮 ========== */
+    .fab {
+      position: fixed;
+      right: max(20px, calc(50vw - 240px + 20px));
+      bottom: 80px;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: inline-flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(13,148,136,0.5);
+      z-index: 15;
+      transition: transform .2s;
+    }
+    .fab:active { transform: scale(0.92); }
+    .fab svg { width: 24px; height: 24px; }
+
+    /* 响应式 */
+    @media (min-width: 481px) {
+      .app { border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-top">
+        <div class="header-title">课程表</div>
+        <div class="header-actions">
+          <button class="icon-btn" id="btnTheme" title="切换主题">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+          <button class="icon-btn" id="btnSettings" title="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="week-switcher">
+        <button class="week-btn" id="btnPrevWeek">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div>
+          <span class="week-label">第 <span id="weekNum">1</span> 周</span>
+          <span class="week-date" id="weekDate"></span>
+        </div>
+        <button class="week-btn" id="btnNextWeek">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- 周课表视图 -->
+    <div class="view active" id="viewWeek">
+      <div class="schedule-container">
+        <div class="schedule-grid" id="scheduleGrid"></div>
+      </div>
+    </div>
+
+    <!-- 今日视图 -->
+    <div class="view" id="viewToday">
+      <div class="today-section">
+        <div class="today-header">
+          <div class="today-date" id="todayDate">08</div>
+          <div class="today-info">
+            <div class="today-weekday" id="todayWeekday">星期二</div>
+            <div class="today-week" id="todayWeekInfo">第 1 周 · 9月</div>
+          </div>
+        </div>
+        <div class="course-list" id="todayList"></div>
+      </div>
+    </div>
+
+    <!-- 课程库视图 -->
+    <div class="view" id="viewLibrary">
+      <div class="library-section">
+        <div class="library-header">
+          <div class="library-title">课程库 <span style="color: var(--text-3); font-size: 13px; font-weight: 400;" id="libCount">(0)</span></div>
+          <button class="add-btn" id="btnAddLib">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加
+          </button>
+        </div>
+        <div id="libList"></div>
+      </div>
+    </div>
+
+    <!-- 设置视图 -->
+    <div class="view" id="viewSettings">
+      <div class="settings-section">
+        <div class="settings-group">
+          <div class="settings-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <div class="label">学期开始日期</div>
+            <div class="value" id="semesterDate">2026-09-07</div>
+          </div>
+          <div class="settings-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="label">总周数</div>
+            <div class="value">20 周</div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></div>
+            <div class="label">深色模式</div>
+            <div class="switch" id="switchTheme"></div>
+          </div>
+          <div class="settings-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+            <div class="label">上课提醒</div>
+            <div class="switch" id="switchNotify"></div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-item" id="btnExport">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <div class="label">导出数据</div>
+            <div class="arrow">›</div>
+          </div>
+          <div class="settings-item" id="btnImport">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="label">导入数据</div>
+            <div class="arrow">›</div>
+          </div>
+          <div class="settings-item" id="btnClearAll">
+            <div class="icon" style="background: rgba(255,107,107,0.1); color: var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>
+            <div class="label" style="color: var(--danger);">清空所有数据</div>
+            <div class="arrow">›</div>
+          </div>
+        </div>
+
+        <div style="text-align: center; color: var(--text-3); font-size: 12px; padding: 20px;">
+          课程表 v2.0 · 软件工程个人作业<br>单文件网页原型
+        </div>
+      </div>
+    </div>
+
+    <!-- 浮动添加按钮 -->
+    <button class="fab" id="fab" title="添加课程">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <!-- Tab Bar -->
+    <nav class="tabbar">
+      <button class="tab-item active" data-tab="week">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>周课表</span>
+      </button>
+      <button class="tab-item" data-tab="today">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>今日</span>
+      </button>
+      <button class="tab-item" data-tab="library">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>课程库</span>
+      </button>
+      <button class="tab-item" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>我的</span>
+      </button>
+    </nav>
+
+    <!-- 课程表单弹窗 -->
+    <div class="modal-mask" id="courseModal">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title" id="modalTitle">添加课程</div>
+          <button class="modal-close" id="modalClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">课程名 <span class="req">*</span></label>
+            <input class="form-input" id="fName" placeholder="如：高等数学" maxlength="30" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">教师 <span class="req">*</span></label>
+              <input class="form-input" id="fTeacher" placeholder="如：张老师" maxlength="20" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">地点 <span class="req">*</span></label>
+              <input class="form-input" id="fLocation" placeholder="如：教 301" maxlength="30" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">星期 <span class="req">*</span></label>
+              <select class="form-select" id="fDay">
+                <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
+                <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="7">周日</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">起止节次 <span class="req">*</span></label>
+              <div class="form-row">
+                <select class="form-select" id="fStartSec"></select>
+                <select class="form-select" id="fEndSec"></select>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">起周 <span class="req">*</span></label>
+              <input class="form-input" id="fStartWeek" type="number" min="1" max="30" value="1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">止周 <span class="req">*</span></label>
+              <input class="form-input" id="fEndWeek" type="number" min="1" max="30" value="16" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">颜色</label>
+            <div class="color-picker" id="fColor"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">备注（可选）</label>
+            <input class="form-input" id="fNote" placeholder="如：双周" maxlength="30" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btnCancel">取消</button>
+          <button class="btn btn-primary" id="btnSave">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 确认弹窗 -->
+    <div class="modal-mask" id="confirmModal">
+      <div class="modal" style="border-radius: 16px; max-width: 360px;" onclick="event.stopPropagation()">
+        <div class="modal-body" style="padding: 24px 20px 8px;">
+          <div class="confirm-content">
+            <div class="title" id="confirmTitle">确认操作</div>
+            <div class="msg" id="confirmMsg">确定要执行此操作吗？</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="confirmCancel">取消</button>
+          <button class="btn btn-danger" id="confirmOk">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <input type="file" id="fileInput" accept="application/json" style="display: none;" />
+
+  <script>
+    // ==================== 数据层 ====================
+    const STORAGE_KEY = 'course-schedule-data-v1';
+
+    const DEFAULT_DATA = {
+      semester: {
+        id: 'sem-001',
+        name: '2026-2027 秋季学期',
+        startDate: '2026-09-07',
+        totalWeeks: 20,
+        currentWeek: 1
+      },
+      courses: [
+        { id: 'c1', name: '高等数学', teacher: '张老师', location: '教 301', dayOfWeek: 1, startSection: 1, endSection: 2, startWeek: 1, endWeek: 16, color: '#D9534F', createdAt: '2026-09-01', updatedAt: '2026-09-01' },
+        { id: 'c2', name: '大学英语', teacher: '李老师', location: '教 205', dayOfWeek: 2, startSection: 3, endSection: 4, startWeek: 1, endWeek: 16, color: '#3D7E9A', createdAt: '2026-09-01', updatedAt: '2026-09-01' },
+        { id: 'c3', name: '数据结构', teacher: '王老师', location: '实验楼 402', dayOfWeek: 3, startSection: 5, endSection: 6, startWeek: 1, endWeek: 16, color: '#5C8A4A', createdAt: '2026-09-01', updatedAt: '2026-09-01' },
+        { id: 'c4', name: '软件工程', teacher: '陈老师', location: '教 401', dayOfWeek: 4, startSection: 1, endSection: 2, startWeek: 1, endWeek: 16, color: '#D98324', createdAt: '2026-09-01', updatedAt: '2026-09-01' },
+        { id: 'c5', name: '计算机网络', teacher: '刘老师', location: '教 302', dayOfWeek: 5, startSection: 7, endSection: 8, startWeek: 1, endWeek: 16, color: '#7E5C86', createdAt: '2026-09-01', updatedAt: '2026-09-01' },
+        { id: 'c6', name: '体育', teacher: '赵老师', location: '体育馆', dayOfWeek: 2, startSection: 9, endSection: 10, startWeek: 1, endWeek: 16, color: '#B8912A', createdAt: '2026-09-01', updatedAt: '2026-09-01' },
+      ]
+    };
+
+    const COLORS = ['#D9534F', '#D98324', '#B8912A', '#5C8A4A', '#3D7E9A', '#7E5C86'];
+    const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    const SECTIONS = [
+      [1, '08:00', '08:45'], [2, '08:55', '09:40'], [3, '10:00', '10:45'], [4, '10:55', '11:40'],
+      [5, '14:00', '14:45'], [6, '14:55', '15:40'], [7, '16:00', '16:45'], [8, '16:55', '17:40'],
+      [9, '19:00', '19:45'], [10, '19:55', '20:40'], [11, '20:50', '21:35'], [12, '21:45', '22:30']
+    ];
+
+    let state = { data: null, currentTab: 'week', currentWeek: 1, editingId: null, theme: 'light' };
+    let pendingConfirm = null;
+
+    function loadData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) { console.error(e); }
+      return JSON.parse(JSON.stringify(DEFAULT_DATA));
+    }
+    function saveData() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
+      catch (e) { toast('保存失败：' + e.message); }
+    }
+    function genId() { return 'c' + Date.now() + Math.random().toString(36).slice(2, 7); }
+    function nowISO() { return new Date().toISOString().slice(0, 10); }
+
+    // ==================== 工具函数 ====================
+    function getCurrentWeekNumber() {
+      const start = new Date(state.data.semester.startDate);
+      const today = new Date();
+      const diff = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+      return Math.max(1, Math.min(state.data.semester.totalWeeks, Math.floor(diff / 7) + 1));
+    }
+    function isCourseActiveInWeek(course, week) {
+      return week >= course.startWeek && week <= course.endWeek;
+    }
+    function hasConflict(a, b) {
+      if (a.id === b.id) return false;
+      if (a.dayOfWeek !== b.dayOfWeek) return false;
+      if (a.endSection < b.startSection || b.endSection < a.startSection) return false;
+      if (a.endWeek < b.startWeek || b.endWeek < a.startWeek) return false;
+      return true;
+    }
+    function validateCourse(c) {
+      const errors = {};
+      if (!c.name || !c.name.trim()) errors.name = '请输入课程名';
+      if (!c.teacher || !c.teacher.trim()) errors.teacher = '请输入教师';
+      if (!c.location || !c.location.trim()) errors.location = '请输入地点';
+      if (c.startSection < 1 || c.endSection > 12 || c.startSection > c.endSection) errors.section = '节次范围不合法';
+      if (c.startWeek < 1 || c.endWeek > 30 || c.startWeek > c.endWeek) errors.week = '周次范围不合法';
+      return { valid: Object.keys(errors).length === 0, errors };
+    }
+    function getWeekDateRange(week) {
+      const start = new Date(state.data.semester.startDate);
+      start.setDate(start.getDate() + (week - 1) * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return `${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()}`;
+    }
+
+    // ==================== 视图渲染 ====================
+    function render() {
+      renderWeekView();
+      renderTodayView();
+      renderLibraryView();
+      updateWeekDisplay();
+    }
+
+    function updateWeekDisplay() {
+      document.getElementById('weekNum').textContent = state.currentWeek;
+      document.getElementById('weekDate').textContent = getWeekDateRange(state.currentWeek);
+    }
+
+    function renderWeekView() {
+      const grid = document.getElementById('scheduleGrid');
+      const today = new Date();
+      const todayDay = ((today.getDay() + 6) % 7) + 1; // 周一=1
+
+      let html = '';
+      // Header
+      html += '<div class="grid-header"></div>';
+      for (let d = 1; d <= 7; d++) {
+        html += `<div class="grid-header ${d === todayDay ? 'today' : ''}">${WEEKDAYS[d-1]}</div>`;
+      }
+      // Body: 12 sections
+      for (let s = 1; s <= 12; s++) {
+        html += `<div class="grid-section"><div class="num">${s}</div><div class="time">${SECTIONS[s-1][1]}</div></div>`;
+        for (let d = 1; d <= 7; d++) {
+          const course = state.data.courses.find(c =>
+            c.dayOfWeek === d &&
+            c.startSection === s &&
+            isCourseActiveInWeek(c, state.currentWeek)
+          );
+          if (course) {
+            const compact = (course.endSection - course.startSection) > 1 ? 'compact' : '';
+            html += `<div class="grid-cell" onclick="openEditCourse('${course.id}')">
+              <div class="course-card ${compact}" style="background: ${course.color};">
+                <div class="name">${escapeHtml(course.name)}</div>
+                <div class="loc">@${escapeHtml(course.location)}</div>
+              </div>
+            </div>`;
+          } else {
+            // Check if it's part of a multi-section course (not start)
+            const parent = state.data.courses.find(c =>
+              c.dayOfWeek === d && c.startSection < s && c.endSection >= s &&
+              isCourseActiveInWeek(c, state.currentWeek)
+            );
+            if (parent) {
+              html += `<div class="grid-cell" onclick="openEditCourse('${parent.id}')">
+                <div class="course-card compact" style="background: ${parent.color}; opacity: 0.85;">
+                  <div class="loc" style="font-size: 10px;">续</div>
+                </div>
+              </div>`;
+            } else {
+              html += `<div class="grid-cell empty" onclick="openAddCourse(${d}, ${s})"></div>`;
+            }
+          }
+        }
+      }
+      grid.innerHTML = html;
+    }
+
+    function renderTodayView() {
+      const today = new Date();
+      const todayDay = ((today.getDay() + 6) % 7) + 1;
+      const todayCourses = state.data.courses
+        .filter(c => c.dayOfWeek === todayDay && isCourseActiveInWeek(c, state.currentWeek))
+        .sort((a, b) => a.startSection - b.startSection);
+
+      document.getElementById('todayDate').textContent = String(today.getDate()).padStart(2, '0');
+      document.getElementById('todayWeekday').textContent = `${WEEKDAYS[todayDay-1]} · ${today.getMonth()+1}月`;
+      document.getElementById('todayWeekInfo').textContent = `第 ${state.currentWeek} 周 · ${state.data.semester.name}`;
+
+      const list = document.getElementById('todayList');
+      if (todayCourses.length === 0) {
+        list.innerHTML = `<div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <div class="text">今天没有课程安排<br>好好休息一下吧</div>
+        </div>`;
+        return;
+      }
+      list.innerHTML = todayCourses.map(c => `
+        <div class="course-list-item" onclick="openEditCourse('${c.id}')">
+          <div class="course-color-bar" style="background: ${c.color};"></div>
+          <div class="course-content">
+            <div class="title">${escapeHtml(c.name)}</div>
+            <div class="meta">
+              <span>教师 ${escapeHtml(c.teacher)}</span>
+              <span>地点 ${escapeHtml(c.location)}</span>
+              <span>第${c.startWeek}-${c.endWeek}周</span>
+            </div>
+          </div>
+          <div class="course-section-badge">第${c.startSection}-${c.endSection}节<br><span style="font-size:10px;opacity:0.8;">${SECTIONS[c.startSection-1][1]}</span></div>
+        </div>
+      `).join('');
+    }
+
+    function renderLibraryView() {
+      const list = document.getElementById('libList');
+      document.getElementById('libCount').textContent = `(${state.data.courses.length})`;
+      if (state.data.courses.length === 0) {
+        list.innerHTML = `<div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <div class="text">课程库空空如也<br>点击右上角添加吧~</div>
+        </div>`;
+        return;
+      }
+      const sorted = [...state.data.courses].sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startSection - b.startSection);
+      list.innerHTML = sorted.map(c => `
+        <div class="lib-item">
+          <div class="lib-item-info">
+            <div class="lib-item-title">
+              <span class="lib-item-dot" style="background: ${c.color};"></span>
+              ${escapeHtml(c.name)}
+            </div>
+            <div class="lib-item-meta">
+              ${WEEKDAYS[c.dayOfWeek-1]} · 第${c.startSection}-${c.endSection}节 · 第${c.startWeek}-${c.endWeek}周 · @${escapeHtml(c.location)}
+            </div>
+          </div>
+          <div class="lib-item-actions">
+            <button onclick="openEditCourse('${c.id}')" title="编辑">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="danger" onclick="confirmDelete('${c.id}')" title="删除">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    // ==================== 表单 ====================
+    function openAddCourse(day, section) {
+      state.editingId = null;
+      document.getElementById('modalTitle').textContent = '添加课程';
+      document.getElementById('fName').value = '';
+      document.getElementById('fTeacher').value = '';
+      document.getElementById('fLocation').value = '';
+      document.getElementById('fDay').value = day || 1;
+      populateSections();
+      document.getElementById('fStartSec').value = section || 1;
+      document.getElementById('fEndSec').value = section || 2;
+      document.getElementById('fStartWeek').value = state.currentWeek;
+      document.getElementById('fEndWeek').value = Math.min(state.currentWeek + 15, 20);
+      document.getElementById('fNote').value = '';
+      selectColor(COLORS[Math.floor(Math.random() * COLORS.length)]);
+      document.getElementById('courseModal').classList.add('show');
+    }
+
+    function openEditCourse(id) {
+      const c = state.data.courses.find(x => x.id === id);
+      if (!c) return;
+      state.editingId = id;
+      document.getElementById('modalTitle').textContent = '编辑课程';
+      document.getElementById('fName').value = c.name;
+      document.getElementById('fTeacher').value = c.teacher;
+      document.getElementById('fLocation').value = c.location;
+      document.getElementById('fDay').value = c.dayOfWeek;
+      populateSections();
+      document.getElementById('fStartSec').value = c.startSection;
+      document.getElementById('fEndSec').value = c.endSection;
+      document.getElementById('fStartWeek').value = c.startWeek;
+      document.getElementById('fEndWeek').value = c.endWeek;
+      document.getElementById('fNote').value = c.note || '';
+      selectColor(c.color);
+      document.getElementById('courseModal').classList.add('show');
+    }
+
+    function populateSections() {
+      const start = document.getElementById('fStartSec');
+      const end = document.getElementById('fEndSec');
+      start.innerHTML = ''; end.innerHTML = '';
+      for (let i = 1; i <= 12; i++) {
+        start.innerHTML += `<option value="${i}">第${i}节 (${SECTIONS[i-1][1]})</option>`;
+        end.innerHTML += `<option value="${i}">第${i}节 (${SECTIONS[i-1][1]})</option>`;
+      }
+    }
+
+    function initColorPicker() {
+      const picker = document.getElementById('fColor');
+      picker.innerHTML = COLORS.map(c => `<div class="color-swatch" style="background: ${c};" data-color="${c}" onclick="selectColor('${c}')"></div>`).join('');
+    }
+
+    function selectColor(c) {
+      state._color = c;
+      document.querySelectorAll('.color-swatch').forEach(el => {
+        el.classList.toggle('selected', el.dataset.color === c);
+      });
+    }
+
+    function saveCourse() {
+      const data = {
+        name: document.getElementById('fName').value.trim(),
+        teacher: document.getElementById('fTeacher').value.trim(),
+        location: document.getElementById('fLocation').value.trim(),
+        dayOfWeek: parseInt(document.getElementById('fDay').value),
+        startSection: parseInt(document.getElementById('fStartSec').value),
+        endSection: parseInt(document.getElementById('fEndSec').value),
+        startWeek: parseInt(document.getElementById('fStartWeek').value),
+        endWeek: parseInt(document.getElementById('fEndWeek').value),
+        color: state._color || COLORS[0],
+        note: document.getElementById('fNote').value.trim()
+      };
+      const v = validateCourse(data);
+      if (!v.valid) {
+        const firstErr = Object.values(v.errors)[0];
+        toast(firstErr);
+        return;
+      }
+      // Conflict check
+      const conflicts = state.data.courses.filter(c => hasConflict({ ...data, id: state.editingId || 'new' }, c));
+      if (conflicts.length > 0 && !confirm(`该时段已有「${conflicts[0].name}」，是否继续？`)) {
+        return;
+      }
+      if (state.editingId) {
+        const idx = state.data.courses.findIndex(c => c.id === state.editingId);
+        if (idx >= 0) {
+          state.data.courses[idx] = { ...state.data.courses[idx], ...data, updatedAt: nowISO() };
+        }
+      } else {
+        state.data.courses.push({ id: genId(), ...data, createdAt: nowISO(), updatedAt: nowISO() });
+      }
+      saveData();
+      render();
+      closeModal();
+      toast('已保存');
+    }
+
+    function closeModal() {
+      document.getElementById('courseModal').classList.remove('show');
+      state.editingId = null;
+    }
+
+    // ==================== 确认弹窗 ====================
+    function confirmDelete(id) {
+      const c = state.data.courses.find(x => x.id === id);
+      if (!c) return;
+      showConfirm('删除课程', `确定要删除「${c.name}」吗？`, () => {
+        state.data.courses = state.data.courses.filter(x => x.id !== id);
+        saveData();
+        render();
+        toast('已删除');
+      });
+    }
+
+    function showConfirm(title, msg, onOk) {
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMsg').textContent = msg;
+      pendingConfirm = onOk;
+      document.getElementById('confirmModal').classList.add('show');
+    }
+
+    // ==================== Tab 切换 ====================
+    function switchTab(tab) {
+      state.currentTab = tab;
+      document.querySelectorAll('.tab-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+      document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === 'view' + tab.charAt(0).toUpperCase() + tab.slice(1)));
+      document.getElementById('fab').style.display = (tab === 'settings' || tab === 'today') ? 'none' : 'flex';
+    }
+
+    // ==================== Toast ====================
+    let toastTimer;
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    // ==================== 主题切换 ====================
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      state.theme = theme;
+      localStorage.setItem('app-theme', theme);
+      document.getElementById('switchTheme').classList.toggle('on', theme === 'dark');
+    }
+
+    // ==================== 导入导出 ====================
+    function exportData() {
+      const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `course-schedule-${nowISO()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('已导出');
+    }
+
+    function importDataFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!data.semester || !Array.isArray(data.courses)) throw new Error('格式错误');
+          showConfirm('导入数据', '将覆盖当前所有数据，是否继续？', () => {
+            state.data = data;
+            saveData();
+            render();
+            toast('导入成功');
+          });
+        } catch (err) {
+          toast('导入失败：' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ==================== 初始化 ====================
+    function init() {
+      state.data = loadData();
+      state.currentWeek = getCurrentWeekNumber();
+      const savedTheme = localStorage.getItem('app-theme') || 'light';
+      applyTheme(savedTheme);
+
+      populateSections();
+      initColorPicker();
+      selectColor(COLORS[0]);
+      render();
+
+      // 事件绑定
+      document.getElementById('btnPrevWeek').onclick = () => {
+        if (state.currentWeek > 1) { state.currentWeek--; updateWeekDisplay(); renderWeekView(); renderTodayView(); }
+      };
+      document.getElementById('btnNextWeek').onclick = () => {
+        if (state.currentWeek < state.data.semester.totalWeeks) { state.currentWeek++; updateWeekDisplay(); renderWeekView(); renderTodayView(); }
+      };
+      document.getElementById('btnTheme').onclick = () => applyTheme(state.theme === 'light' ? 'dark' : 'light');
+      document.getElementById('btnSettings').onclick = () => switchTab('settings');
+      document.getElementById('btnAddLib').onclick = () => openAddCourse();
+      document.getElementById('fab').onclick = () => openAddCourse();
+      document.getElementById('modalClose').onclick = closeModal;
+      document.getElementById('btnCancel').onclick = closeModal;
+      document.getElementById('btnSave').onclick = saveCourse;
+      document.getElementById('courseModal').onclick = e => { if (e.target.id === 'courseModal') closeModal(); };
+      document.getElementById('confirmCancel').onclick = () => { document.getElementById('confirmModal').classList.remove('show'); pendingConfirm = null; };
+      document.getElementById('confirmOk').onclick = () => { document.getElementById('confirmModal').classList.remove('show'); if (pendingConfirm) pendingConfirm(); pendingConfirm = null; };
+      document.getElementById('confirmModal').onclick = e => { if (e.target.id === 'confirmModal') { document.getElementById('confirmModal').classList.remove('show'); pendingConfirm = null; } };
+
+      document.querySelectorAll('.tab-item').forEach(el => el.onclick = () => switchTab(el.dataset.tab));
+
+      document.getElementById('switchTheme').onclick = () => applyTheme(state.theme === 'light' ? 'dark' : 'light');
+      document.getElementById('switchNotify').onclick = function() {
+        this.classList.toggle('on');
+        toast(this.classList.contains('on') ? '提醒已开启' : '提醒已关闭');
+      };
+      document.getElementById('btnExport').onclick = exportData;
+      document.getElementById('btnImport').onclick = () => document.getElementById('fileInput').click();
+      document.getElementById('fileInput').onchange = e => { if (e.target.files[0]) importDataFile(e.target.files[0]); };
+      document.getElementById('btnClearAll').onclick = () => {
+        showConfirm('清空数据', '将删除所有课程和设置，无法恢复！', () => {
+          state.data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+          state.data.courses = [];
+          saveData();
+          render();
+          toast('已清空');
+        });
+      };
+    }
+
+    init();
+  </script>
+</body>
+</html>
